@@ -1,0 +1,445 @@
+<title>絵になるカメラ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="絵になるカメラ">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#100f0c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+/* Layout: one-screen camera. Viewfinder takes the free height; effect strip, slider and shutter row sit under it. Single dark look on purpose (camera UI). */
+:root{
+  --ink:#100f0c; --body:#1c1a15; --panel:#27231c; --line:#3b352b;
+  --paper:#f3ead8; --muted:#a89f8d; --accent:#e9a23b;
+  --f-hand:"Klee One","Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  --f-ui:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html{height:100%;box-sizing:border-box}
+*,*::before,*::after{box-sizing:inherit}
+body{height:100%;background:var(--ink);color:var(--paper);font-family:var(--f-ui);overflow:hidden}
+.app{height:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-hand);font-weight:600;font-size:20px;margin:0;letter-spacing:.04em}
+h1 small{font-weight:400;font-size:12px;color:var(--muted);margin-left:8px;letter-spacing:0}
+.view{position:relative;flex:1;min-height:0;border-radius:14px;overflow:hidden;background:var(--body);border:1px solid var(--line)}
+#cv{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+.tag{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:2px;padding:6px 10px;border-radius:8px;background:rgba(16,15,12,.72);max-width:calc(100% - 20px)}
+.tag b{font-family:var(--f-hand);font-weight:600;font-size:16px}
+.tag span{font-size:12px;color:var(--muted)}
+.sample{position:absolute;right:10px;top:10px;font-size:11px;padding:3px 8px;border-radius:99px;background:rgba(16,15,12,.72);color:var(--muted)}
+.start{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font:600 15px var(--f-ui);color:var(--ink);background:var(--accent);border:0;border-radius:99px;padding:11px 20px;cursor:pointer;white-space:nowrap}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.flash.go{animation:fl .35s ease-out}
+@keyframes fl{from{opacity:.85}to{opacity:0}}
+.note{font-size:12.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty}
+.fxs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin;flex-shrink:0}
+.fx{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px;border-radius:12px;border:1px solid transparent;background:none;color:var(--paper);cursor:pointer;font:500 12px var(--f-hand)}
+.fx canvas{width:58px;height:58px;border-radius:9px;display:block;background:var(--panel)}
+.fx[aria-pressed="true"]{border-color:var(--accent);background:var(--panel)}
+.fx[aria-pressed="true"] span{color:var(--accent)}
+.slider{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);flex-shrink:0}
+.slider input{flex:1;accent-color:var(--accent)}
+.bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;flex-shrink:0}
+.side{justify-self:start;font:500 13px var(--f-ui);color:var(--paper);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;cursor:pointer}
+.bar .right{justify-self:end}
+.shutter{width:74px;height:74px;border-radius:50%;border:4px solid var(--paper);background:var(--accent);box-shadow:inset 0 0 0 4px var(--ink);cursor:pointer}
+.shutter:active{transform:scale(.94)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(10,9,7,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px))}
+.sheet img{max-width:100%;max-height:68vh;border-radius:10px;display:block}
+.sheet .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.sheet .go{font:700 15px var(--f-ui);background:var(--accent);color:var(--ink);border:0;border-radius:12px;padding:12px 22px;cursor:pointer}
+.sheet .msg{min-height:1.4em;font-size:13px;color:var(--accent);margin:0;text-align:center}
+input[type=file]{display:none}
+@media (prefers-reduced-motion:reduce){.flash.go{animation:none}}
+</style>
+
+<div class="app">
+  <header>
+    <h1>絵になるカメラ<small>のぞいた景色がそのまま絵になる</small></h1>
+  </header>
+
+  <div class="view">
+    <canvas id="cv"></canvas>
+    <div class="tag"><b id="fxName">まんが</b><span id="fxDesc"></span></div>
+    <div class="sample" id="sampleTag">サンプルの絵</div>
+    <button class="start" id="start" type="button">カメラを起動する</button>
+    <div class="flash" id="flash"></div>
+  </div>
+
+  <p class="note" id="note" hidden></p>
+
+  <div class="fxs" id="fxs" role="group" aria-label="絵のタッチ"></div>
+
+  <label class="slider" for="line">線の量
+    <input type="range" id="line" min="0" max="100" value="50">
+  </label>
+
+  <div class="bar">
+    <button class="side" id="pick" type="button">写真を選ぶ</button>
+    <button class="shutter" id="shutter" type="button" aria-label="撮る"></button>
+    <button class="side right" id="flip" type="button" hidden>カメラ切替</button>
+    <button class="side right" id="saveCur" type="button" hidden>保存する</button>
+  </div>
+
+  <input type="file" id="fPick" accept="image/*">
+  <input type="file" id="fCam" accept="image/*" capture="environment">
+  <video id="video" playsinline muted hidden></video>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <img id="shot" alt="できあがった絵">
+  <p class="note">保存ボタンで保存できないときは、絵を長押しして「写真に保存」を選んでね。</p>
+  <div class="row">
+    <button class="go" id="dl" type="button">保存する</button>
+    <button class="side" id="close" type="button">もどる</button>
+  </div>
+  <p class="msg" id="msg"></p>
+</div>
+
+<script id="vs" type="x-shader">
+attribute vec2 aPos; varying vec2 vUv;
+void main(){ vUv = aPos*.5+.5; gl_Position = vec4(aPos,0.,1.); }
+</script>
+<script id="fs" type="x-shader">
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uTex;
+uniform vec2 uPx;      /* 1/1000 of the photo's long side, in texture units */
+uniform float uScale;  /* output long side / 1000 */
+uniform int uMode;
+uniform float uLine;   /* 0..1 */
+uniform float uMirror;
+uniform float uGamma; /* brightens dark photos */
+
+float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x), f.y); }
+float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.03+17.1; a*=.5; } return v; }
+float lum(vec3 c){ return dot(c, vec3(.299,.587,.114)); }
+vec3 T(vec2 uv){ return pow(texture2D(uTex, uv).rgb, vec3(uGamma)); }
+vec3 blur(vec2 uv, float r){ vec2 d = uPx*r;
+  vec3 s = T(uv)*.25;
+  s += (T(uv+vec2(d.x,0.))+T(uv-vec2(d.x,0.))+T(uv+vec2(0.,d.y))+T(uv-vec2(0.,d.y)))*.125;
+  s += (T(uv+d)+T(uv-d)+T(uv+vec2(d.x,-d.y))+T(uv+vec2(-d.x,d.y)))*.0625;
+  return s; }
+float sobel(vec2 uv, float r){ vec2 d = uPx*r;
+  float tl=lum(T(uv+vec2(-d.x,d.y))), t=lum(T(uv+vec2(0.,d.y))), tr=lum(T(uv+d));
+  float l=lum(T(uv-vec2(d.x,0.))), rr=lum(T(uv+vec2(d.x,0.)));
+  float bl=lum(T(uv-d)), b=lum(T(uv-vec2(0.,d.y))), br=lum(T(uv+vec2(d.x,-d.y)));
+  float gx=(tr+2.*rr+br)-(tl+2.*l+bl), gy=(tl+2.*t+tr)-(bl+2.*b+br);
+  return length(vec2(gx,gy)); }
+/* ink lines: edges + dark thin details (difference of blurs) */
+float ink(vec2 uv){
+  float e = sobel(uv, 1.1+uLine*1.2);
+  float g1 = lum(blur(uv,1.)), g2 = lum(blur(uv,3.2));
+  float a = smoothstep(.62-uLine*.42, .95-uLine*.42, e);
+  float b = smoothstep(.025, .07, (g2-g1)*(.5+uLine*1.2));
+  return clamp(max(a,b),0.,1.); }
+vec3 paper(vec2 p, vec3 base){
+  float n = fbm(p*.35)*.6 + fbm(p*1.7)*.4;
+  float fib = noise(vec2(p.x*.08,p.y*1.6))*.5 + noise(vec2(p.x*1.5,p.y*.07))*.5;
+  return base*(.91+.09*n)*(.97+.03*fib); }
+float dots(vec2 p, float ang, float cell, float dark){
+  float c=cos(ang), s=sin(ang); vec2 q = vec2(c*p.x-s*p.y, s*p.x+c*p.y)/cell;
+  float d = length(fract(q)-.5); float rad = sqrt(clamp(dark,0.,1.))*.66;
+  return 1.-smoothstep(rad-.07, rad+.07, d); }
+float hatch(vec2 p, float ang, float sp, float w){
+  float c=cos(ang), s=sin(ang);
+  float along = -p.x*s + p.y*c;
+  float t = (p.x*c + p.y*s)/sp + (noise(p*.04)-.5)*.7;
+  float f = abs(fract(t)-.5);
+  float stroke = 1.-smoothstep(w-.1, w+.1, f);
+  float breaks = smoothstep(.25,.55, noise(vec2(floor(t)*7.3, along*.03)));
+  return stroke*breaks; }
+
+void main(){
+  vec2 uv = vUv; if(uMirror>.5) uv.x = 1.-uv.x;
+  vec2 p = gl_FragCoord.xy/uScale;
+  vec3 col;
+  if(uMode==0){ /* まんが */
+    float l = lum(blur(uv,1.));
+    float tone = l<.2 ? 1. : dots(p,.785,7.,smoothstep(.66,.2,l)*.8);
+    if(l>.66) tone = 0.;
+    col = mix(paper(p,vec3(.97,.955,.92)), vec3(.08,.075,.07), max(ink(uv), tone*.93));
+  } else if(uMode==1){ /* えんぴつ */
+    float l = lum(blur(uv,1.5));
+    float h = hatch(p,.9,6.,.17)*smoothstep(.8,.58,l);
+    h = max(h, hatch(p,-.7,6.5,.15)*smoothstep(.56,.36,l));
+    h = max(h, hatch(p,.15,4.8,.19)*smoothstep(.34,.16,l));
+    float g = fbm(p*2.6);
+    float dark = clamp(max(h*.6, ink(uv)*.88)*(.72+.38*g), 0., 1.);
+    col = mix(paper(p,vec3(.965,.96,.945)), vec3(.2,.2,.23), dark);
+  } else if(uMode==2){ /* いろえんぴつ */
+    vec3 c = blur(uv,1.5); float l = lum(c);
+    vec3 sat = clamp(mix(vec3(l),c,1.6),0.,1.);
+    float cov = hatch(p,.9,4.6,.24)*smoothstep(.99,.45,l) + hatch(p,-.7,5.2,.2)*smoothstep(.6,.22,l);
+    cov = clamp(cov,0.,1.)*(.65+.45*fbm(p*3.));
+    vec3 pap = paper(p,vec3(.985,.975,.95));
+    col = mix(pap, sat*pap, .22);
+    col = mix(col, sat*.95, cov*.85);
+    col = mix(col, sat*.28, ink(uv)*.8);
+  } else if(uMode==3){ /* アニメ塗り */
+    vec3 c = blur(uv,2.); float l = lum(c);
+    float q = max(floor(l*4.+.5)/4., .12);
+    vec3 cc = c*(q/max(l,.03));
+    cc = clamp(mix(vec3(lum(cc)),cc,1.35),0.,1.);
+    col = mix(cc, vec3(.06,.05,.06), ink(uv));
+  } else if(uMode==4){ /* ポップ */
+    float l = lum(blur(uv,2.)); vec3 a;
+    if(l<.24) a=vec3(.14,.11,.33);
+    else if(l<.44) a=vec3(.93,.23,.47);
+    else if(l<.64) a=vec3(.13,.65,.83);
+    else if(l<.83) a=vec3(1.,.84,.2);
+    else a=vec3(1.,.97,.9);
+    if(l>=.44 && l<.83) a = mix(a, a*.72, dots(p,.5,8.,.22));
+    col = mix(a, vec3(.07,.05,.1), ink(uv));
+  } else if(uMode==5){ /* すいさい */
+    vec2 w = (vec2(fbm(p*.02), fbm(p*.02+9.))-.5)*uPx*16.;
+    vec3 c = blur(uv+w, 4.5);
+    c = mix(c, floor(c*5.+.5)/5., .55);
+    float gran = fbm(p*.6);
+    float e = sobel(uv+w, 3.);
+    vec3 pap = paper(p,vec3(.985,.975,.94));
+    col = pap*mix(vec3(1.), c, .86+.14*gran);
+    col *= 1.-smoothstep(.15,.55,e)*.2;
+    col = mix(col, pap, smoothstep(.6,.8,fbm(p*.012+3.))*.35);
+    col = mix(col, col*.6, ink(uv)*.3);
+  } else if(uMode==6){ /* すみえ */
+    vec2 w = (vec2(fbm(p*.03), fbm(p*.03+5.))-.5)*uPx*9.;
+    float l = lum(blur(uv+w,3.5));
+    float wash = smoothstep(.86,.74,l)*.18 + smoothstep(.6,.48,l)*.3 + smoothstep(.34,.22,l)*.38;
+    wash *= .78+.44*fbm(p*.15);
+    col = mix(paper(p,vec3(.95,.92,.85)), vec3(.1,.1,.11), clamp(wash + ink(uv+w*.5)*.95, 0., 1.));
+  } else if(uMode==7){ /* あみ点 */
+    vec3 c = blur(uv,1.5); vec3 cmy = 1.-c;
+    float k = min(min(cmy.x,cmy.y),cmy.z);
+    cmy = clamp((cmy-k*.6), 0., 1.);
+    float C=dots(p,.26,6.,cmy.x), M=dots(p,1.31,6.,cmy.y), Y=dots(p,0.,6.,cmy.z), K=dots(p,.785,6.,k*.75);
+    col = paper(p,vec3(.97,.955,.92));
+    col *= vec3(1.-C*.85, 1., 1.);
+    col *= vec3(1., 1.-M*.85, 1.);
+    col *= vec3(1., 1., 1.-Y*.85);
+    col *= 1.-K*.85;
+    col = mix(col, vec3(.1), ink(uv)*.45);
+  } else { /* こくばん */
+    float l = lum(blur(uv,1.5));
+    vec3 board = vec3(.13,.24,.2)*(.82+.28*fbm(p*.05)) + (fbm(p*.4)-.5)*.04;
+    float grain = smoothstep(.3,.7, noise(p*1.3)*.6 + noise(p*3.7)*.4);
+    float h = hatch(p,1.,7.,.13)*smoothstep(.5,.85,l);
+    float a = clamp(ink(uv) + h*.55, 0., 1.)*grain;
+    col = mix(board, vec3(.94,.94,.89), a);
+  }
+  gl_FragColor = vec4(col,1.);
+}
+</script>
+
+<script>
+const MODES = [
+  {name:"まんが",       desc:"白黒の線と、あみ点のトーン"},
+  {name:"えんぴつ",     desc:"斜線で影をつけたスケッチ"},
+  {name:"いろえんぴつ", desc:"色のある線をかさねた絵"},
+  {name:"アニメ塗り",   desc:"太い線と、くっきりした色"},
+  {name:"ポップ",       desc:"4色だけの、はでなポスター"},
+  {name:"すいさい",     desc:"にじんだ絵の具と紙の目"},
+  {name:"すみえ",       desc:"墨の線と、うすいにじみ"},
+  {name:"あみ点",       desc:"昔の印刷みたいな色の点"},
+  {name:"こくばん",     desc:"黒板にチョークでかいた絵"},
+];
+const $ = id => document.getElementById(id);
+const cv = $("cv"), video = $("video");
+const gl = cv.getContext("webgl", {preserveDrawingBuffer:true, antialias:false});
+
+/* slider 0..100 -> line .35..1.25 (old version went down to 0, too few lines to read the photo) */
+const toLine = v => .35 + v/100*.9;
+let mode = 0, line = toLine(50), live = false, facing = "environment", stream = null;
+let src = null, srcW = 0, srcH = 0, mirror = false, isSample = true, needThumbs = false;
+let lastBlob = null, lastURL = "";
+let tried = false, gamma = 1, frameNo = 0;
+const meter = document.createElement("canvas"); meter.width = meter.height = 24;
+const mctx = meter.getContext("2d", {willReadFrequently:true});
+/* dark photo -> lift midtones so lines and tones stay readable */
+function measure(){ try{ mctx.drawImage(src, 0, 0, 24, 24); const d = mctx.getImageData(0, 0, 24, 24).data; let t = 0;
+  for(let i = 0; i < d.length; i += 4) t += (d[i]*.299 + d[i+1]*.587 + d[i+2]*.114)/255;
+  const avg = Math.max(.03, t/(d.length/4)); const g = Math.log(.5)/Math.log(avg);
+  gamma = Math.min(1.4, Math.max(.5, 1 + (g-1)*.7)); }catch(e){ gamma = 1; } }
+const dlP = (window.claude && window.claude.use) ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
+
+/* ---------- WebGL ---------- */
+let prog, loc = {}, tex;
+function setupGL(){
+  const sh = (type, txt) => { const s = gl.createShader(type); gl.shaderSource(s, txt); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, $("vs").textContent));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, $("fs").textContent));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const a = gl.getAttribLocation(prog, "aPos"); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+  ["uTex","uPx","uScale","uMode","uLine","uMirror","uGamma"].forEach(n => loc[n] = gl.getUniformLocation(prog, n));
+  tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.uniform1i(loc.uTex, 0);
+}
+function upload(){ gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, src); }
+function draw(w, h, m){
+  w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
+  if(cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  gl.viewport(0, 0, w, h);
+  const L = Math.max(srcW, srcH);
+  gl.uniform2f(loc.uPx, L/srcW/1000, L/srcH/1000);
+  gl.uniform1f(loc.uScale, Math.max(w, h)/1000);
+  gl.uniform1i(loc.uMode, m);
+  gl.uniform1f(loc.uLine, line);
+  gl.uniform1f(loc.uMirror, mirror ? 1 : 0);
+  gl.uniform1f(loc.uGamma, gamma);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+function previewSize(){ const k = Math.min(1, 1100/Math.max(srcW, srcH)); return [srcW*k, srcH*k]; }
+function render(){ if(!src) return; const [w,h] = previewSize(); draw(w, h, mode); }
+
+/* ---------- サムネイル ---------- */
+const thumbs = [];
+function makeThumbs(){
+  const s = 120/Math.min(srcW, srcH), w = srcW*s, h = srcH*s;
+  MODES.forEach((m, i) => { draw(w, h, i); const t = thumbs[i], c = t.getContext("2d");
+    c.drawImage(cv, (cv.width-120)/2, (cv.height-120)/2, 120, 120, 0, 0, 120, 120); });
+  render();
+}
+
+/* ---------- 画面 ---------- */
+function buildStrip(){
+  MODES.forEach((m, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "fx"; b.id = "fx" + i;
+    b.setAttribute("aria-pressed", i === mode);
+    const c = document.createElement("canvas"); c.width = c.height = 120; thumbs.push(c);
+    const s = document.createElement("span"); s.textContent = m.name;
+    b.append(c, s); b.onclick = () => setMode(i); $("fxs").append(b);
+  });
+}
+function setMode(i){
+  mode = i;
+  document.querySelectorAll(".fx").forEach((b, j) => b.setAttribute("aria-pressed", j === i));
+  $("fxName").textContent = MODES[i].name; $("fxDesc").textContent = MODES[i].desc;
+  if(!live) render();
+}
+function refreshUI(){
+  $("sampleTag").hidden = !isSample || live;
+  $("start").hidden = live;
+  $("flip").hidden = !live;
+  $("saveCur").hidden = live || isSample;
+}
+function note(t){ $("note").textContent = t; $("note").hidden = !t; }
+
+function sampleScene(){ const c = document.createElement("canvas"); c.width = 1000; c.height = 750; const x = c.getContext("2d");
+  let g = x.createLinearGradient(0,0,0,520); g.addColorStop(0,"#5d8fd6"); g.addColorStop(1,"#f6c58f"); x.fillStyle = g; x.fillRect(0,0,1000,750);
+  x.fillStyle="#fff1c9"; x.beginPath(); x.arc(760,190,70,0,7); x.fill();
+  x.fillStyle="#fff"; [[180,140,60],[240,120,46],[300,150,50]].forEach(([a,b,r]) => { x.beginPath(); x.arc(a,b,r,0,7); x.fill(); });
+  x.fillStyle="#6c7fa8"; x.beginPath(); x.moveTo(0,470); x.lineTo(230,280); x.lineTo(420,450); x.lineTo(620,300); x.lineTo(1000,480); x.lineTo(1000,750); x.lineTo(0,750); x.fill();
+  g = x.createLinearGradient(0,470,0,750); g.addColorStop(0,"#5c9a4a"); g.addColorStop(1,"#2f5b2a"); x.fillStyle = g; x.fillRect(0,500,1000,250);
+  x.fillStyle="#d9c3a0"; x.fillRect(560,400,230,170); x.fillStyle="#9b3b2a"; x.beginPath(); x.moveTo(540,405); x.lineTo(675,320); x.lineTo(810,405); x.fill();
+  x.fillStyle="#5a3a22"; x.fillRect(650,480,50,90); x.fillStyle="#9fd3ef"; x.fillRect(590,430,44,40); x.fillRect(720,430,44,40);
+  x.fillStyle="#6b4a2b"; x.fillRect(200,430,26,150); x.fillStyle="#3e7d3a"; x.beginPath(); x.arc(213,400,80,0,7); x.fill(); x.fillStyle="#4f9447"; x.beginPath(); x.arc(185,380,48,0,7); x.fill();
+  x.fillStyle="#c9a26b"; x.beginPath(); x.moveTo(430,750); x.lineTo(520,560); x.lineTo(560,560); x.lineTo(620,750); x.fill();
+  return c; }
+
+function useStill(canvas, sample){
+  stopCam(); src = canvas; srcW = canvas.width; srcH = canvas.height; mirror = false; isSample = sample;
+  measure(); upload(); makeThumbs(); refreshUI();
+}
+function loadFile(f){
+  if(!f) return;
+  const u = URL.createObjectURL(f), im = new Image();
+  im.onload = () => { const k = Math.min(1, 2400/Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement("canvas"); c.width = Math.round(im.naturalWidth*k); c.height = Math.round(im.naturalHeight*k);
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
+    useStill(c, false); note(""); };
+  im.onerror = () => note("この写真は読みこめなかったよ。別の写真で試してね。");
+  im.src = u;
+}
+
+/* ---------- カメラ ---------- */
+async function startCam(){
+  tried = true;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ noCam(); return; }
+  try{
+    stopCam();
+    stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:facing}, width:{ideal:1920}, height:{ideal:1080}}});
+    video.srcObject = stream; await video.play();
+    src = video; live = true; isSample = false; mirror = facing === "user"; needThumbs = true;
+    note(""); refreshUI(); requestAnimationFrame(frame);
+  }catch(e){ noCam(); }
+}
+function stopCam(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } live = false; }
+function noCam(){
+  live = false; refreshUI(); $("start").hidden = true;
+  note("ここではカメラの画面を直接出せないみたい。シャッターを押すとスマホのカメラが開くので、撮った写真がそのまま絵になるよ。");
+}
+function frame(){
+  if(!live) return;
+  if(video.readyState >= 2 && video.videoWidth){
+    srcW = video.videoWidth; srcH = video.videoHeight;
+    if(frameNo++ % 20 === 0) measure();
+    upload();
+    if(needThumbs){ needThumbs = false; makeThumbs(); } else render();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 撮る・保存 ---------- */
+function finish(){
+  draw(srcW, srcH, mode);
+  cv.toBlob(b => {
+    if(!b) return; lastBlob = b; if(lastURL) URL.revokeObjectURL(lastURL); lastURL = URL.createObjectURL(b);
+    $("shot").src = lastURL; $("msg").textContent = ""; $("sheet").hidden = false; render();
+  }, "image/jpeg", .92);
+}
+function shoot(){
+  if(live){ const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); upload(); finish(); }
+  else $("fCam").click();
+}
+function stamp(){ const d = new Date(), z = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`; }
+async function save(){
+  if(!lastBlob) return;
+  const name = `e-ni-naru-${stamp()}.jpg`, msg = $("msg");
+  const d = await dlP;
+  if(d){
+    try{ await d.save({filename:name, data:lastBlob}); msg.textContent = "保存したよ"; return; }
+    catch(e){ if(e && e.code === "declined"){ msg.textContent = "保存をやめたよ"; return; } }
+  }
+  try{
+    const f = new File([lastBlob], name, {type:"image/jpeg"});
+    if(navigator.canShare && navigator.canShare({files:[f]})){ await navigator.share({files:[f]}); return; }
+  }catch(e){ if(e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = lastURL; a.download = name; document.body.append(a); a.click(); a.remove();
+  msg.textContent = "保存されないときは、絵を長押ししてね";
+}
+
+/* ---------- はじまり ---------- */
+try{
+  setupGL(); buildStrip(); setMode(0); useStill(sampleScene(), true);
+}catch(e){
+  note("このブラウザでは絵にする処理が動かなかったよ（WebGLが使えないみたい）。");
+}
+$("start").onclick = startCam;
+$("shutter").onclick = shoot;
+$("pick").onclick = () => $("fPick").click();
+$("fPick").onchange = e => { loadFile(e.target.files[0]); e.target.value = ""; };
+$("fCam").onchange = e => { loadFile(e.target.files[0]); e.target.value = ""; };
+$("flip").onclick = () => { facing = facing === "environment" ? "user" : "environment"; startCam(); };
+$("saveCur").onclick = finish;
+$("line").oninput = e => { line = toLine(+e.target.value); if(!live) makeThumbs(); };
+$("dl").onclick = save;
+$("close").onclick = () => { $("sheet").hidden = true; };
+document.addEventListener("visibilitychange", () => { if(document.hidden && live){ stopCam(); refreshUI(); } });
+</script>
